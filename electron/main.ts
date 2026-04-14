@@ -46,10 +46,11 @@ function captureMac(): Promise<string | null> {
       try {
         const buffer = readFileSync(tmpPath)
         const base64 = buffer.toString('base64')
-        unlinkSync(tmpPath) // 임시 파일 삭제
         resolve(base64)
       } catch {
         resolve(null)
+      } finally {
+        try { if (existsSync(tmpPath)) unlinkSync(tmpPath) } catch {}
       }
     })
   })
@@ -59,7 +60,7 @@ function captureMac(): Promise<string | null> {
 function captureWindows(): Promise<string | null> {
   return new Promise((resolve) => {
     const tmpPath = path.join(tmpdir(), `snap-ai-capture-${Date.now()}.png`)
-    const escapedPath = tmpPath.replace(/\\/g, '\\\\')
+    const escapedPath = tmpPath.replace(/'/g, "''").replace(/\\/g, '\\\\')
 
     const ps = `
       Add-Type -AssemblyName System.Windows.Forms
@@ -107,10 +108,11 @@ function captureWindows(): Promise<string | null> {
       try {
         const buffer = readFileSync(tmpPath)
         const base64 = buffer.toString('base64')
-        unlinkSync(tmpPath)
         resolve(base64)
       } catch {
         resolve(null)
+      } finally {
+        try { if (existsSync(tmpPath)) unlinkSync(tmpPath) } catch {}
       }
     })
   })
@@ -128,13 +130,18 @@ ipcMain.handle('start-capture', async () => {
 
   if (process.platform === 'darwin') {
     base64 = await captureMac()
-  } else {
+  } else if (process.platform === 'win32') {
     base64 = await captureWindows()
+  } else {
+    mainWindow.show()
+    return // Linux 등 미지원 플랫폼
   }
 
   mainWindow.show()
 
   if (base64) {
+    // Windows에서 show() 직후 renderer가 준비 안 될 수 있으므로 대기
+    await new Promise(r => setTimeout(r, 300))
     mainWindow.webContents.send('capture-result', base64)
   }
 })

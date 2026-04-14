@@ -14,8 +14,10 @@ win:
   icon: resources/icon.ico
 nsis:
   oneClick: false
+  perMachine: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  include: build/installer.nsh
 mac:
   target:
     - target: dmg

@@ -45,9 +45,11 @@ export default function App() {
   promptRef.current = customPrompt
 
   // 캡처 결과 수신 (한 번만 등록)
+  const processingRef = useRef(false)
   useEffect(() => {
     window.electronAPI.onCaptureResult(async (base64: string) => {
-      if (!base64) return
+      if (!base64 || processingRef.current) return
+      processingRef.current = true
 
       setIsLoading(true)
       setStatusText('Gemini AI가 데이터를 분석 중...')
@@ -55,6 +57,11 @@ export default function App() {
       try {
         const currentColumns = columnsRef.current
         const apiKey = await window.electronAPI.getApiKey()
+        if (!apiKey) {
+          setShowSettings(true)
+          setStatusText('Gemini API 키를 설정해주세요')
+          return
+        }
         const result = await callGemini(apiKey, base64, currentColumns, promptRef.current)
 
         if (result.rows && result.rows.length > 0) {
@@ -63,7 +70,7 @@ export default function App() {
           )
           // 기존 데이터에서 빈 행 제거 후 위에서부터 채우기
           setData(prev => {
-            const nonEmpty = prev.filter(row => row.some(cell => cell.trim() !== ''))
+            const nonEmpty = prev.filter(row => row.some(cell => (cell ?? '').trim() !== ''))
             return [...nonEmpty, ...newRows]
           })
           setStatusText(`${result.rows.length}개 행이 추가되었습니다`)
@@ -74,6 +81,7 @@ export default function App() {
         setStatusText(`오류: ${err.message}`)
       } finally {
         setIsLoading(false)
+        processingRef.current = false
       }
     })
   }, []) // 빈 deps → 한 번만 등록

@@ -23,6 +23,7 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
     const hotRef = useRef<Handsontable | null>(null)
     // 프로그래밍 방식 변경 시 훅 무시용 플래그
     const suppressSync = useRef(false)
+    const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Handsontable → React 상태 동기화 유틸
     const syncToReact = useCallback(() => {
@@ -30,12 +31,13 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
       if (!hot) return
       const allData = hot.getData()
       const newCols = allData[0].slice(1) as string[]
-      const newData = allData.slice(1).map(row => row.slice(1) as string[])
+      const newData = allData.slice(1).map(row => row.slice(1).map((cell: any) => String(cell ?? '')) as string[])
       suppressSync.current = true
       onColumnsChange(newCols)
       onDataChange(newData)
       // 다음 tick에서 플래그 해제 (useEffect가 실행된 후)
-      setTimeout(() => { suppressSync.current = false }, 0)
+      if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
+      suppressTimerRef.current = setTimeout(() => { suppressSync.current = false }, 0)
     }, [onColumnsChange, onDataChange])
 
     // 행 번호 재정렬
@@ -56,7 +58,7 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
       getData: () => {
         if (!hotRef.current) return data
         const allData = hotRef.current.getData()
-        return allData.slice(1).map(row => row.slice(1))
+        return allData.slice(1).map(row => row.slice(1).map((cell: any) => String(cell ?? '')))
       },
       addRow: () => {
         const hot = hotRef.current
@@ -188,7 +190,7 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
         },
 
         afterChange(changes, source) {
-          if (!changes || source === 'loadData' || source === 'internal') return
+          if (!changes || source === 'loadData' || source === ('internal' as string)) return
           if (suppressSync.current) return
 
           const hot = hotRef.current
@@ -210,9 +212,10 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
             }
             if (dataChanged) {
               suppressSync.current = true
-              onDataChange(allData.slice(1).map(row => row.slice(1) as string[]))
+              onDataChange(allData.slice(1).map(row => row.slice(1).map((cell: any) => String(cell ?? '')) as string[]))
             }
-            setTimeout(() => { suppressSync.current = false }, 0)
+            if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
+            suppressTimerRef.current = setTimeout(() => { suppressSync.current = false }, 0)
           }
         }
       })
@@ -220,6 +223,7 @@ const Spreadsheet = forwardRef<SpreadsheetHandle, SpreadsheetProps>(
       hotRef.current = hot
 
       return () => {
+        if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
         hot.destroy()
         hotRef.current = null
       }

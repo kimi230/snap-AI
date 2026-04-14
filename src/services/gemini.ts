@@ -35,28 +35,51 @@ export async function callGemini(
     prompt += `\n\n추가 지시사항:\n${customPrompt}`
   }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: prompt },
-          {
-            inlineData: {
-              mimeType: 'image/png',
-              data: imageBase64
-            }
-          }
-        ]
-      }
-    ],
-    config: {
-      responseMimeType: 'application/json',
-      responseJsonSchema
-    }
-  })
+  const timeoutMs = 60_000
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  const text = response.text ?? ''
-  return JSON.parse(text)
+  let response
+  try {
+    response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: 'image/png',
+                data: imageBase64
+              }
+            }
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema,
+        abortSignal: controller.signal
+      }
+    })
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Gemini API 응답 시간 초과 (60초)')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+
+  const text = response.text?.trim()
+  if (!text) {
+    throw new Error('Gemini API가 빈 응답을 반환했습니다')
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error('Gemini 응답을 파싱할 수 없습니다')
+  }
 }

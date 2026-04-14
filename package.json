@@ -1,6 +1,6 @@
 {
   "name": "snap-ai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Screen capture to spreadsheet with Gemini AI",
   "main": "dist/main/main.js",
   "scripts": {

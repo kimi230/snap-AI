@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface PromptModalProps {
   value: string
@@ -8,6 +8,7 @@ interface PromptModalProps {
 
 export default function PromptModal({ value, onSave, onClose }: PromptModalProps) {
   const [text, setText] = useState(value)
+  useEffect(() => { setText(value) }, [value])
 
   return (
     <div className="modal-overlay" onClick={onClose}>
